@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Store product matching SmartPOS Owner Utama KasirModels.kt (cost excluded from guest views)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "storeId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 160 },
+        "sku": { "type": "string", "maxLength": 64 },
+        "barcode": { "type": "string", "maxLength": 64 },
+        "brand": { "type": "string", "maxLength": 80 },
+        "category": { "type": "string", "maxLength": 80 },
+        "subCategory": { "type": "string", "maxLength": 80 },
+        "size": { "type": "string", "maxLength": 40 },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "expiryDate": { "type": "string", "maxLength": 40 },
+        "unit": { "type": "string", "maxLength": 32 },
+        "weightGrams": { "type": "number", "minimum": 0 },
+        "imageUrl": { "type": "string", "maxLength": 512 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "storeId", "name", "price", "stock"]
+    },
+    "GuestOrder": {
+      "title": "GuestOrder",
+      "description": "Server-validated guest order awaiting Owner Utama cashier confirmation",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 40 },
+        "storeId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "customerPhone": { "type": "string", "minLength": 9, "maxLength": 20 },
+        "fulfillmentType": { "type": "string", "enum": ["pickup", "delivery"] },
+        "deliveryAddress": { "type": "string", "maxLength": 240 },
+        "notes": { "type": "string", "maxLength": 300 },
+        "items": { "type": "array" },
+        "itemsSubtotal": { "type": "number", "minimum": 0 },
+        "total": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "accepted", "ready", "completed", "rejected"]
+        },
+        "stockDeducted": { "type": "boolean" },
+        "shipping": {
+          "type": "object",
+          "properties": {
+            "provider": { "type": "string", "enum": ["STORE_COURIER", "JNT_EXPRESS"] },
+            "serviceCode": { "type": "string", "maxLength": 32 },
+            "status": {
+              "type": "string",
+              "enum": ["PENDING_RATE", "READY_TO_SHIP", "PICKED_UP", "IN_TRANSIT", "DELIVERED", "FAILED"]
+            },
+            "totalWeightGrams": { "type": "number", "minimum": 0 },
+            "hasUnweighedItems": { "type": "boolean" },
+            "shippingFee": { "type": "number", "minimum": 0 },
+            "shippingFeeConfirmed": { "type": "boolean" },
+            "trackingNumber": { "type": "string", "maxLength": 64 },
+            "notes": { "type": "string", "maxLength": 300 },
+            "updatedAt": { "type": "string", "format": "date-time" },
+            "shippedAt": { "type": "string", "format": "date-time" },
+            "deliveredAt": { "type": "string", "format": "date-time" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderId",
+        "orderNumber",
+        "storeId",
+        "customerName",
+        "customerPhone",
+        "fulfillmentType",
+        "items",
+        "total",
+        "status",
+        "stockDeducted",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/stores/{storeId}/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Authoritative store product catalog managed by SmartPOS Owner Utama"
+    },
+    "/stores/{storeId}/guest_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/GuestOrder" },
+      "description": "Guest orders created by backend validation and processed by Owner Utama"
+    }
+  }
+}

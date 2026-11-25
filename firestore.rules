@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isStoreOwner(storeId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/stores/$(storeId)) &&
+        get(/databases/$(database)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidGuestOrderStatus(status) {
+      return status in ['pending', 'accepted', 'ready', 'completed', 'rejected'];
+    }
+
+    function isValidGuestOrderUpdate(data) {
+      return data.keys().hasAll([
+        'orderId', 'orderNumber', 'storeId', 'customerName', 'customerPhone',
+        'fulfillmentType', 'items', 'total', 'status', 'stockDeducted', 'createdAt', 'updatedAt'
+      ])
+      && data.orderId is string && data.orderId.size() <= 128
+      && data.orderNumber is string && data.orderNumber.size() <= 40
+      && data.storeId is string && data.storeId.size() <= 128
+      && data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 80
+      && data.customerPhone is string && data.customerPhone.size() >= 9 && data.customerPhone.size() <= 20
+      && data.fulfillmentType in ['pickup', 'delivery']
+      && data.items is list && data.items.size() > 0 && data.items.size() <= 50
+      && data.total is number && data.total >= 0
+      && isValidGuestOrderStatus(data.status)
+      && data.stockDeducted is bool;
+    }
+
+    // Store product catalog: public client writes strictly forbidden;
+    // guest catalog reads and server-validated orders flow through backend APIs.
+    match /stores/{storeId}/products/{productId} {
+      allow get, list: if isStoreOwner(storeId);
+      allow create, update, delete: if isStoreOwner(storeId) && isValidId(storeId) && isValidId(productId);
+    }
+
+    // Guest orders: browser never writes directly to Firestore or lists other guests' PII.
+    // Backend API handles guest submission & status lookup; verified store owner manages order lifecycle.
+    match /stores/{storeId}/guest_orders/{orderId} {
+      allow get, list: if isStoreOwner(storeId);
+      allow create: if false;
+      allow update: if isStoreOwner(storeId)
+        && isValidId(storeId)
+        && isValidId(orderId)
+        && isValidGuestOrderUpdate(incoming())
+        && incoming().orderId == existing().orderId
+        && incoming().storeId == existing().storeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && !(existing().status in ['completed', 'rejected'])
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'stockDeducted', 'rejectionReason', 'updatedAt']);
+      allow delete: if false;
+    }
+  }
+}
